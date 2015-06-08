@@ -1,7 +1,7 @@
 var db = require('../config');
 var Click = require('./click');
 var crypto = require('crypto');
-var user = require('./user');
+var User = require('./user');
 
 var Link = db.Model.extend({
   tableName: 'urls',
@@ -20,7 +20,7 @@ var Link = db.Model.extend({
     });
   },
   user: function(){
-    return this.belongsTo(user, 'user_id');
+    return this.belongsTo(User, 'user_id');
   }
 });
 

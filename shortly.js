@@ -45,6 +45,11 @@ function(req, res) {
   res.render('signup');
 });
 
+app.get('/login',
+function(req, res) {
+  res.render('login');
+});
+
 app.post('/signup',
 function(req, res) {
   var password = req.body.password;
@@ -52,7 +57,7 @@ function(req, res) {
   var salt = 'salt';
   //TODO: create salt, hash password
   var user = new User({
-    password: password,
+    password: password + salt,
     username: username,
     salt: salt
   });
@@ -62,6 +67,39 @@ function(req, res) {
     Users.add(newUser);
     res.send(200, newUser);
   });
+});
+
+
+app.post('/login', function(req, res) {
+  //query db with username passed in
+  var password = req.body.password;
+  var username = req.body.username;
+  //obtain salt for that user
+  new User({username: username}).fetch()
+    .then(function(model){
+      var salt =  model.get('salt');
+  //concat password + salt and send to hashing
+      var saltedPassword = password + salt;
+  //check database for username and particular hashed pw
+      if(model.get('password') === saltedPassword){
+        console.log('Password match')
+      } else {
+        console.log('no password match')
+      }
+
+
+    });
+
+
+
+
+
+  //if match found
+    //begin session
+    //route to '/links'
+
+  //if not found
+    //reroute to login
 });
 
 app.post('/links',
@@ -88,6 +126,11 @@ function(req, res) {
           title: title,
           base_url: req.headers.origin
         });
+
+
+
+        // link.related('user').attach([1]);
+        //TODO: properly attach relationship b/w link and it's user in the session
 
         link.save().then(function(newLink) {
           Links.add(newLink);
