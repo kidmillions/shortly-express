@@ -25,7 +25,7 @@ module.exports = function(grunt) {
                 src: 'Gruntfile.js'
             },
             app_files: {
-                src: ['app/**/*.js']
+                src: ['app/**/*.js', 'shortly.js', 'lib/**/*.js']
             }
         },
         shell: {
@@ -49,7 +49,7 @@ module.exports = function(grunt) {
                 tasks: ['shell:runTests']
             },
             app_lint: {
-                files: './app/**/*.js',
+                files:  ['./app/**/*.js', './shortly.js', './lib/**/*.js'],
                 tasks:['jshint:app_files']
             }
         }
