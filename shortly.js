@@ -2,7 +2,7 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
-
+var bcrypt = require('bcrypt-nodejs');
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -52,14 +52,13 @@ function(req, res) {
 
 app.post('/signup',
 function(req, res) {
+  //TODO: check that user doesn't exist
   var password = req.body.password;
   var username = req.body.username;
-  var salt = 'salt';
   //TODO: create salt, hash password
   var user = new User({
-    password: password + salt,
+    password: password,
     username: username,
-    salt: salt
   });
 
 
@@ -68,7 +67,7 @@ function(req, res) {
     res.send(200, newUser);
   });
 });
-
+//
 
 app.post('/login', function(req, res) {
   //query db with username passed in
@@ -77,17 +76,17 @@ app.post('/login', function(req, res) {
   //obtain salt for that user
   new User({username: username}).fetch()
     .then(function(model){
-      var salt =  model.get('salt');
-  //concat password + salt and send to hashing
-      var saltedPassword = password + salt;
-  //check database for username and particular hashed pw
-      if(model.get('password') === saltedPassword){
+      var salt = model.get('salt');
+      console.log("salt: ", salt)
+      //concat password + salt and send to hashing
+      var hashed = bcrypt.hashSync(password, salt);
+      console.log('password: ', hashed);
+      //check database for username and salted password
+      if(model.get('password') === hashed){
         console.log('Password match')
       } else {
         console.log('no password match')
       }
-
-
     });
 
 
