@@ -23,24 +23,48 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
 
-app.get('/', 
+app.get('/',
 function(req, res) {
   res.render('index');
 });
 
-app.get('/create', 
+app.get('/create',
 function(req, res) {
   res.render('index');
 });
 
-app.get('/links', 
+app.get('/links',
 function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
 
-app.post('/links', 
+app.get('/signup',
+function(req, res) {
+  res.render('signup');
+});
+
+app.post('/signup',
+function(req, res) {
+  var password = req.body.password;
+  var username = req.body.username;
+  var salt = 'salt';
+  //TODO: create salt, hash password
+  var user = new User({
+    password: password,
+    username: username,
+    salt: salt
+  });
+
+
+  user.save().then(function(newUser){
+    Users.add(newUser);
+    res.send(200, newUser);
+  });
+});
+
+app.post('/links',
 function(req, res) {
   var uri = req.body.url;
 
