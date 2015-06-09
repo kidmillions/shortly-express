@@ -11,6 +11,7 @@ var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
 var session = require('express-session')
+var cookieParser = require('cookie-parser');
 var app = express();
 
 app.set('views', __dirname + '/views');
@@ -22,6 +23,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
+app.use(cookieParser());
 app.use(session({secret: 'devonandchris', resave: false, saveUninitialized: true}));
 
 
@@ -49,7 +51,7 @@ function(req, res) {
 
 app.get('/links', restrict,
 function(req, res) {
-  Links.reset().fetch().then(function(links) {
+  Links.reset().query({where: {user_id: req.session.user}}).fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
@@ -103,30 +105,18 @@ app.post('/login', function(req, res) {
       if(model.get('password') === hashed){
         console.log('Password match');
         req.session.regenerate(function() {
-          req.session.user = username;
+          req.session.user = model.get('id');
           res.redirect('/');
         })
       } else {
         console.log('no password match')
       }
     });
-
-
-
-
-
-  //if match found
-    //begin session
-    //route to '/links'
-
-  //if not found
-    //reroute to login
 });
 
 app.post('/links',
 function(req, res) {
   var uri = req.body.url;
-
   if (!util.isValidUrl(uri)) {
     console.log('Not a valid url: ', uri);
     return res.send(404);
@@ -148,9 +138,7 @@ function(req, res) {
           base_url: req.headers.origin
         });
 
-        // link.related('user').attach([1]);
-        //TODO: properly attach relationship b/w link and it's user in the session
-        //      and only show that user's links
+        link.set('user_id', req.session.user);
 
         link.save().then(function(newLink) {
           Links.add(newLink);
