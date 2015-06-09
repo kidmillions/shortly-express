@@ -17,6 +17,11 @@ var User = db.Model.extend({
   hasTimestamps: false,
   links: function(){
     return this.hasMany(Links);
+  },
+  validPassword: function(password) {
+    var salt = this.get('salt');
+    var hashed = bcrypt.hashSync(password, salt);
+    return this.get('password') === hashed;
   }
 });
 

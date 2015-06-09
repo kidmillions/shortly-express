@@ -3,10 +3,41 @@ var bcrypt = require('bcrypt-nodejs');
 var db = require('./app/config');
 var Click = require('./app/models/click');
 var session = require('express-session');
-var app = require('./lib/init');
+var LocalStrategy = require('passport-local').Strategy;
+var init = require('./lib/init');
 var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
+var User = require('./app/models/user');
+var app = init.app;
+var passport = init.passport;
 
+passport.use(new LocalStrategy(
+  function(username, password, done) {
+    util.findUser(username, function(user) {
+      if (!user) {
+        return done(null, false, { message: 'Incorrect username.' });
+      }
+      if (!user.validPassword(password)) {
+        return done(null, false, { message: 'Incorrect password.' });
+      }
+
+      return done(null, user);
+    })
+  }
+));
+
+passport.serializeUser(function(user, done) {
+  console.log('serializing');
+  done(null, user.id);
+});
+
+passport.deserializeUser(function(id, done) {
+  util.findUserByID(id, function(user) {
+    console.log('found user: ', user.attributes, " and now deserializing");
+    var err = null;
+    done(err, user);
+  });
+});
 
 app.get('/', util.restrict,
 function(req, res) {
@@ -42,25 +73,8 @@ function(req, res) {
   });
 });
 
-app.post('/login', function(req, res) {
-  //query db with username passed in
-  util.findUser(req, function(model){
-    if(!model){
-      res.send('This user does not exist. Please sign up');
-      res.redirect('/signup');
-    }
-
-    var salt = model.get('salt');
-    var hashed = bcrypt.hashSync(req.body.password, salt);
-
-    if(model.get('password') === hashed){
-      console.log('Password match');
-      util.createSession(req, res, model);
-    } else {
-      res.send('That password was incorrect. Try again.')
-    }
-    })
-});
+app.post('/login', passport.authenticate('local', {successRedirect: '/',
+                                                   failureRedirect: '/login'}));
 
 app.post('/logout',
 function(req, res) {
