@@ -73,7 +73,6 @@ function(req, res) {
   new User({username: username}).fetch()
   .then(function(user){
     if(user){
-      //TODO: let user know that username is already taken
       res.redirect('/login');
     } else {
       var user = new User({
