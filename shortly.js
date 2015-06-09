@@ -90,17 +90,15 @@ function(req, res) {
 //
 
 app.post('/login', function(req, res) {
-  //query db with username passed in
   var password = req.body.password;
   var username = req.body.username;
-  //obtain salt for that user
+  //query db with username passed in
   new User({username: username}).fetch()
     .then(function(model){
+      //obtain salt for that user
       var salt = model.get('salt');
-      console.log("salt: ", salt)
       //concat password + salt and send to hashing
       var hashed = bcrypt.hashSync(password, salt);
-      console.log('password: ', hashed);
       //check database for username and salted password
       if(model.get('password') === hashed){
         console.log('Password match');
@@ -112,6 +110,12 @@ app.post('/login', function(req, res) {
         console.log('no password match')
       }
     });
+});
+
+app.post('/logout',
+function(req, res) {
+  req.session.destroy();
+  res.redirect('/login');
 });
 
 app.post('/links',
