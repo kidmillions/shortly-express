@@ -1,55 +1,24 @@
-var express = require('express');
 var util = require('./lib/utility');
-var partials = require('express-partials');
-var bodyParser = require('body-parser');
 var bcrypt = require('bcrypt-nodejs');
-
 var db = require('./app/config');
-var Users = require('./app/collections/users');
-var User = require('./app/models/user');
+var Click = require('./app/models/click');
+var session = require('express-session');
+var app = require('./lib/init');
 var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
-var Click = require('./app/models/click');
-var session = require('express-session')
-var cookieParser = require('cookie-parser');
-var app = express();
-
-app.set('views', __dirname + '/views');
-app.set('view engine', 'ejs');
-app.use(partials());
-// Parse JSON (uniform resource locators)
-app.use(bodyParser.json());
-// Parse forms (signup/login)
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static(__dirname + '/public'));
-
-app.use(cookieParser());
-app.use(session({secret: 'devonandchris', resave: false, saveUninitialized: true}));
 
 
-var restrict = function(req, res, next) {
-  if (req.session.user) {
-    next();
-  } else {
-    req.session.error = 'Get Out';
-    res.redirect('/login');
-  }
-
-}
-
-
-
-app.get('/', restrict,
+app.get('/', util.restrict,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/create', restrict,
+app.get('/create', util.restrict,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/links', restrict,
+app.get('/links', util.restrict,
 function(req, res) {
   Links.reset().query({where: {user_id: req.session.user}}).fetch().then(function(links) {
     res.send(200, links.models);
@@ -68,47 +37,29 @@ function(req, res) {
 
 app.post('/signup',
 function(req, res) {
-  var password = req.body.password;
-  var username = req.body.username;
-  new User({username: username}).fetch()
-  .then(function(user){
-    if(user){
-      res.redirect('/login');
-    } else {
-      var user = new User({
-        password: password,
-        username: username,
-      });
-      user.save().then(function(newUser){
-        Users.add(newUser);
-        res.send(200, newUser);
-      });
-    }
+  util.createUser(req.body.username, req.body.password, function(newUser) {
+    util.createSession(req, res, newUser);
   });
 });
-//
 
 app.post('/login', function(req, res) {
-  var password = req.body.password;
-  var username = req.body.username;
   //query db with username passed in
-  new User({username: username}).fetch()
-    .then(function(model){
-      //obtain salt for that user
-      var salt = model.get('salt');
-      //concat password + salt and send to hashing
-      var hashed = bcrypt.hashSync(password, salt);
-      //check database for username and salted password
-      if(model.get('password') === hashed){
-        console.log('Password match');
-        req.session.regenerate(function() {
-          req.session.user = model.get('id');
-          res.redirect('/');
-        })
-      } else {
-        console.log('no password match')
-      }
-    });
+  util.findUser(req, function(model){
+    if(!model){
+      res.send('This user does not exist. Please sign up');
+      res.redirect('/signup');
+    }
+
+    var salt = model.get('salt');
+    var hashed = bcrypt.hashSync(req.body.password, salt);
+
+    if(model.get('password') === hashed){
+      console.log('Password match');
+      util.createSession(req, res, model);
+    } else {
+      res.send('That password was incorrect. Try again.')
+    }
+    })
 });
 
 app.post('/logout',
@@ -119,50 +70,19 @@ function(req, res) {
 
 app.post('/links',
 function(req, res) {
-  var uri = req.body.url;
-  if (!util.isValidUrl(uri)) {
-    console.log('Not a valid url: ', uri);
+  var url = req.body.url;
+  if (!util.isValidUrl(url)) {
+    console.log('Not a valid url: ', url);
     return res.send(404);
   }
-
-  new Link({ url: uri }).fetch().then(function(found) {
-    if (found) {
-      res.send(200, found.attributes);
-    } else {
-      util.getUrlTitle(uri, function(err, title) {
-        if (err) {
-          console.log('Error reading URL heading: ', err);
-          return res.send(404);
-        }
-
-        var link = new Link({
-          url: uri,
-          title: title,
-          base_url: req.headers.origin
-        });
-
-        link.set('user_id', req.session.user);
-
-        link.save().then(function(newLink) {
-          Links.add(newLink);
-          res.send(200, newLink);
-        });
-      });
+  util.createLink(req, function(link, err){
+    if (err) {
+      console.log('Error reading URL heading: ', err);
+      res.send(404);
     }
-  });
+    res.send(200, link);
+  })
 });
-
-/************************************************************/
-// Write your authentication routes here
-/************************************************************/
-
-
-
-/************************************************************/
-// Handle the wildcard route last - if all other routes fail
-// assume the route is a short code and try and handle it here.
-// If the short-code doesn't exist, send the user to '/'
-/************************************************************/
 
 app.get('/*', function(req, res) {
   new Link({ code: req.params[0] }).fetch().then(function(link) {
@@ -172,7 +92,6 @@ app.get('/*', function(req, res) {
       var click = new Click({
         link_id: link.get('id')
       });
-
       click.save().then(function() {
         db.knex('urls')
           .where('code', '=', link.get('code'))
