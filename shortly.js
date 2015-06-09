@@ -10,7 +10,7 @@ var User = require('./app/models/user');
 var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
-
+var session = require('express-session')
 var app = express();
 
 app.set('views', __dirname + '/views');
@@ -22,18 +22,32 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
+app.use(session({secret: 'devonandchris', resave: false, saveUninitialized: true}));
 
-app.get('/',
+
+var restrict = function(req, res, next) {
+  if (req.session.user) {
+    next();
+  } else {
+    req.session.error = 'Get Out';
+    res.redirect('/login');
+  }
+
+}
+
+
+
+app.get('/', restrict,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/create',
+app.get('/create', restrict,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/links',
+app.get('/links', restrict,
 function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
@@ -52,19 +66,23 @@ function(req, res) {
 
 app.post('/signup',
 function(req, res) {
-  //TODO: check that user doesn't exist
   var password = req.body.password;
   var username = req.body.username;
-  //TODO: create salt, hash password
-  var user = new User({
-    password: password,
-    username: username,
-  });
-
-
-  user.save().then(function(newUser){
-    Users.add(newUser);
-    res.send(200, newUser);
+  new User({username: username}).fetch()
+  .then(function(user){
+    if(user){
+      //TODO: let user know that username is already taken
+      res.redirect('/login');
+    } else {
+      var user = new User({
+        password: password,
+        username: username,
+      });
+      user.save().then(function(newUser){
+        Users.add(newUser);
+        res.send(200, newUser);
+      });
+    }
   });
 });
 //
@@ -83,7 +101,11 @@ app.post('/login', function(req, res) {
       console.log('password: ', hashed);
       //check database for username and salted password
       if(model.get('password') === hashed){
-        console.log('Password match')
+        console.log('Password match');
+        req.session.regenerate(function() {
+          req.session.user = username;
+          res.redirect('/');
+        })
       } else {
         console.log('no password match')
       }
@@ -126,10 +148,9 @@ function(req, res) {
           base_url: req.headers.origin
         });
 
-
-
         // link.related('user').attach([1]);
         //TODO: properly attach relationship b/w link and it's user in the session
+        //      and only show that user's links
 
         link.save().then(function(newLink) {
           Links.add(newLink);
