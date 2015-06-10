@@ -4,6 +4,7 @@ var db = require('./app/config');
 var Click = require('./app/models/click');
 var session = require('express-session');
 var LocalStrategy = require('passport-local').Strategy;
+var GitHubStrategy = require('passport-github2').Strategy;
 var init = require('./lib/init');
 var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
@@ -26,14 +27,33 @@ passport.use(new LocalStrategy(
   }
 ));
 
+passport.use(new GitHubStrategy({
+  clientID: 'f7c76cf9dec2503c19dd',
+  clientSecret: '24d8652bc20110d84646b2bd419020866001848b',
+  callbackURL: 'http://127.0.0.1:4568/github/login/callback'
+  },
+  function(accessToken, refreshToken, profile, done) {
+    util.findUserByGithubID(profile.id, function(model){
+      var newUser = model
+      if(!newUser){
+        util.createUser(profile.username, accessToken, function(user) {
+          newUser = user;
+          console.log('new user created');
+          return done(null, newUser);
+        }, profile.id);
+      } else {
+         return done(null, newUser);
+      }
+    });
+  }
+));
+
 passport.serializeUser(function(user, done) {
-  console.log('serializing');
   done(null, user.id);
 });
 
 passport.deserializeUser(function(id, done) {
   util.findUserByID(id, function(user) {
-    console.log('found user: ', user.attributes, " and now deserializing");
     var err = null;
     done(err, user);
   });
@@ -51,10 +71,17 @@ function(req, res) {
 
 app.get('/links', util.restrict,
 function(req, res) {
-  Links.reset().query({where: {user_id: req.session.user}}).fetch().then(function(links) {
+  Links.reset().query({where: {user_id: req.session.passport.user}}).fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
+
+app.get('/github/login', passport.authenticate('github', {scope: ['user:email']}));
+
+app.get('/github/login/callback', passport.authenticate('github', {
+   successRedirect: '/',
+   failureRedirect: '/login'
+}));
 
 app.get('/signup',
 function(req, res) {
@@ -78,7 +105,7 @@ app.post('/login', passport.authenticate('local', {successRedirect: '/',
 
 app.post('/logout',
 function(req, res) {
-  req.session.destroy();
+  req.logout();
   res.redirect('/login');
 });
 
